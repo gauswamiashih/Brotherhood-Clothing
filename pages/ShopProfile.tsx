@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -9,6 +8,7 @@ const ShopProfile: React.FC = () => {
   const { user, shops, toggleFollow, incrementView, isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState('Collection');
 
+  const INSTAGRAM_URL = "https://www.instagram.com/gauswami_8_07_18?igsh=MXQxMmdqM3A2YXN0ZQ==";
   const shop = shops.find(s => s.slug === slug);
 
   useEffect(() => {
@@ -84,6 +84,15 @@ const ShopProfile: React.FC = () => {
               <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4">
                 <span className="px-4 py-1.5 bg-purple-600/10 border border-purple-500/20 text-purple-400 text-[10px] font-black uppercase tracking-widest rounded-full">PRIVATE ATELIER</span>
                 <span className="text-gray-500 text-[10px] font-bold uppercase tracking-[0.4em]">{shop.category}</span>
+                <a 
+                  href={INSTAGRAM_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-1.5 bg-purple-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full flex items-center gap-2 hover:bg-purple-500 transition-colors"
+                >
+                  <i className="fa-brands fa-instagram"></i>
+                  INSTAGRAM
+                </a>
               </div>
               <p className="text-gray-400 font-light text-lg italic max-w-2xl leading-relaxed">"{shop.description}"</p>
             </div>

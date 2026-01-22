@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -10,6 +9,9 @@ const Navbar: React.FC = () => {
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const INSTAGRAM_URL = "https://www.instagram.com/gauswami_8_07_18?igsh=MXQxMmdqM3A2YXN0ZQ==";
+  const LOGO_PATH = "C:\\Users\\gausw\\Downloads\\ChatGPT Image Jan 20, 2026, 09_36_56 PM.png";
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -42,9 +44,12 @@ const Navbar: React.FC = () => {
     }`}>
       <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-12">
         <div className="flex justify-between items-center">
-          <Link to="/" className="flex flex-col group" onClick={() => setMobileMenuOpen(false)}>
-            <span className="font-serif text-3xl font-bold tracking-tighter text-white group-hover:text-purple-500 transition-all duration-500">BROTHERHOOD</span>
-            <span className="text-[10px] uppercase tracking-[0.5em] text-purple-600 font-black -mt-1 opacity-80">CLOTHING</span>
+          <Link to="/" className="flex items-center group" onClick={() => setMobileMenuOpen(false)}>
+            <img 
+              src={LOGO_PATH} 
+              alt="Brotherhood Logo" 
+              className="h-10 md:h-12 w-auto object-contain group-hover:scale-105 transition-transform duration-500"
+            />
           </Link>
           
           <div className="hidden lg:flex items-center space-x-12">
@@ -54,6 +59,16 @@ const Navbar: React.FC = () => {
             >
               DIRECTORY
             </Link>
+
+            <a 
+              href={INSTAGRAM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-400 hover:text-purple-500 transition-colors"
+              title="Follow our Instagram"
+            >
+              <i className="fa-brands fa-instagram text-lg"></i>
+            </a>
             
             {isAuthenticated ? (
               <div className="flex items-center space-x-10">
@@ -95,6 +110,14 @@ const Navbar: React.FC = () => {
       {/* Mobile Menu */}
       <div className={`fixed inset-0 bg-black/95 z-40 lg:hidden transition-all duration-500 flex flex-col items-center justify-center space-y-12 ${mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
           <Link to="/shops" onClick={() => setMobileMenuOpen(false)} className="text-4xl font-serif text-white hover:text-purple-500 transition-colors">THE INDEX</Link>
+          <a 
+            href={INSTAGRAM_URL} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-4xl font-serif text-white hover:text-purple-500 transition-colors"
+          >
+            INSTAGRAM
+          </a>
           {isAuthenticated ? (
             <>
               <Link to="/dashboard" onClick={() => setMobileMenuOpen(false)} className="text-4xl font-serif text-white hover:text-purple-500 transition-colors">DASHBOARD</Link>
