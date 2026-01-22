@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -5,11 +6,12 @@ import { useAuth } from '../context/AuthContext';
 const ShopProfile: React.FC = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
-  const { user, shops, toggleFollow, incrementView, isAuthenticated } = useAuth();
+  const { user, shops, products, toggleFollow, incrementView, isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState('Collection');
 
   const INSTAGRAM_URL = "https://www.instagram.com/gauswami_8_07_18?igsh=MXQxMmdqM3A2YXN0ZQ==";
   const shop = shops.find(s => s.slug === slug);
+  const shopProducts = products.filter(p => p.shopId === shop?.id);
 
   useEffect(() => {
     if (shop) {
@@ -41,13 +43,6 @@ const ShopProfile: React.FC = () => {
     window.location.href = `tel:+91${shop.phone}`;
   };
 
-  const dummyProducts = Array.from({ length: 6 }).map((_, i) => ({
-    id: i,
-    image: `https://images.unsplash.com/photo-${['1515886657613-9f3515b0c78f', '1483985988355-763728e1935b', '1539109132314-d49c95594785', '1496747611176-843222e1e57c', '1558769132-cb1aea458c5e', '1492707892479-7bc8d5a4ee93'][i % 6]}?auto=format&fit=crop&q=80&w=800`,
-    name: `Premium Series ${i + 1}`,
-    price: `₹${(Math.floor(Math.random() * 50) + 20) * 100}`
-  }));
-
   return (
     <div className="min-h-screen bg-[#0b0b0b] text-white">
       {/* Immersive Banner */}
@@ -60,7 +55,7 @@ const ShopProfile: React.FC = () => {
         <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b0b] via-transparent to-black/60"></div>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4 pt-20">
            <div className="text-purple-500 text-[10px] uppercase tracking-[0.6em] font-black mb-4">ESTABLISHED {new Date(shop.createdAt).getFullYear()}</div>
-           <h1 className="font-serif text-5xl md:text-9xl text-white font-bold tracking-tighter leading-none mb-6">{shop.name}</h1>
+           <h1 className="font-serif text-5xl md:text-9xl text-white font-bold tracking-tighter leading-none mb-6 text-center">{shop.name}</h1>
            <div className="h-px w-24 bg-purple-600"></div>
         </div>
       </div>
@@ -171,37 +166,43 @@ const ShopProfile: React.FC = () => {
                 <p className="text-gray-500 font-light text-lg">Every garment is a testament to the pursuit of perfection. Exclusively available for private commission.</p>
              </div>
              
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-16">
-               {dummyProducts.map(p => (
-                 <div key={p.id} className="group relative">
-                   <div className="aspect-[4/5] overflow-hidden bg-[#111] relative border border-white/5">
-                     <img 
-                       src={p.image} 
-                       className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-1000 group-hover:scale-110" 
-                       alt={p.name} 
-                     />
-                     <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center p-8 text-center">
-                        <div className="translate-y-8 group-hover:translate-y-0 transition-transform duration-700 space-y-6">
-                           <p className="text-purple-400 font-serif italic text-3xl">{p.price}</p>
-                           <button 
-                            onClick={(e) => { e.stopPropagation(); handleWhatsApp(p.name); }}
-                            className="px-10 py-4 bg-white text-black text-[10px] font-black uppercase tracking-widest hover:bg-purple-600 hover:text-white transition-all shadow-2xl"
-                           >
-                             REQUEST COMMISSION
-                           </button>
+             {shopProducts.length > 0 ? (
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-16">
+                 {shopProducts.map(p => (
+                   <div key={p.id} className="group relative">
+                     <div className="aspect-[4/5] overflow-hidden bg-[#111] relative border border-white/5">
+                       <img 
+                         src={p.images[0]} 
+                         className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-1000 group-hover:scale-110" 
+                         alt={p.name} 
+                       />
+                       <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center p-8 text-center">
+                          <div className="translate-y-8 group-hover:translate-y-0 transition-transform duration-700 space-y-6">
+                             <p className="text-purple-400 font-serif italic text-3xl">₹{p.price}</p>
+                             <button 
+                              onClick={(e) => { e.stopPropagation(); handleWhatsApp(p.name); }}
+                              className="px-10 py-4 bg-white text-black text-[10px] font-black uppercase tracking-widest hover:bg-purple-600 hover:text-white transition-all shadow-2xl"
+                             >
+                               REQUEST COMMISSION
+                             </button>
+                          </div>
+                       </div>
+                     </div>
+                     <div className="mt-8 space-y-2">
+                        <div className="flex justify-between items-end">
+                          <h4 className="font-serif text-2xl text-white font-bold tracking-tight group-hover:text-purple-500 transition-colors">{p.name}</h4>
+                          <span className="text-[9px] text-gray-700 font-black uppercase tracking-widest">{p.category}</span>
                         </div>
+                        <div className="h-px w-full bg-white/5"></div>
                      </div>
                    </div>
-                   <div className="mt-8 space-y-2">
-                      <div className="flex justify-between items-end">
-                        <h4 className="font-serif text-2xl text-white font-bold tracking-tight group-hover:text-purple-500 transition-colors">{p.name}</h4>
-                        <span className="text-[9px] text-gray-700 font-black uppercase tracking-widest">LIMITED EDITION</span>
-                      </div>
-                      <div className="h-px w-full bg-white/5"></div>
-                   </div>
-                 </div>
-               ))}
-             </div>
+                 ))}
+               </div>
+             ) : (
+               <div className="py-20 text-center border border-white/5 bg-white/5">
+                  <p className="text-gray-500 text-xs font-bold uppercase tracking-[0.4em]">Curating the premier collection... Please check back shortly.</p>
+               </div>
+             )}
           </div>
         ) : (
           <div className="max-w-4xl mx-auto space-y-24">
