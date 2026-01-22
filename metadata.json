@@ -1,6 +1,7 @@
-
 {
-  "name": "Brotherhood Clothing - Premium Fashion Market",
-  "description": "A luxury local fashion discovery platform for Palanpur, connecting discerning customers with the city's finest boutiques.",
-  "requestFramePermissions": []
+  "name": "Brotherhood Clothing - Palanpur's Fashion Market",
+  "description": "A premium fashion marketplace for Palanpur, Gujarat. Explore shops, register your own, and join the elite fashion community.",
+  "requestFramePermissions": [
+    "camera"
+  ]
 }

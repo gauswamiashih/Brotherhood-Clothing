@@ -1,52 +1,44 @@
 
-export enum UserRole {
-  ADMIN = 'ADMIN',
-  SHOP_OWNER = 'SHOP_OWNER',
-  CUSTOMER = 'CUSTOMER'
+export enum ShopCategory {
+  MEN = 'Men',
+  WOMEN = 'Women',
+  KIDS = 'Kids',
+  ALL = 'All'
 }
 
 export enum ShopStatus {
-  PENDING = 'PENDING',
-  APPROVED = 'APPROVED',
-  REJECTED = 'REJECTED'
+  PENDING = 'Pending',
+  APPROVED = 'Approved',
+  BLOCKED = 'Blocked'
+}
+
+export enum UserRole {
+  VISITOR = 'Visitor',
+  OWNER = 'Owner',
+  ADMIN = 'Admin'
 }
 
 export interface User {
   id: string;
   name: string;
   email: string;
+  picture: string;
   role: UserRole;
-  phone?: string;
-  followingIds: string[];
 }
 
 export interface Shop {
   id: string;
   ownerId: string;
   name: string;
-  slug: string;
-  logo: string;
-  coverImage: string;
-  description: string;
-  address: string;
-  whatsapp: string;
+  ownerName: string;
   phone: string;
-  status: ShopStatus;
-  category: string;
-  isVerified: boolean;
-  createdAt: string;
-  followersCount: number;
-  viewCount: number;
-  priority: number; // 1 for Founder, 2 for Others
-}
-
-export interface Product {
-  id: string;
-  shopId: string;
-  name: string;
-  description: string;
-  price: number;
-  category: string;
+  email: string;
+  city: string;
+  category: ShopCategory;
+  instagram?: string;
   images: string[];
-  isAvailable: boolean;
+  status: ShopStatus;
+  isFounder: boolean;
+  followersCount: number;
+  description: string;
 }
