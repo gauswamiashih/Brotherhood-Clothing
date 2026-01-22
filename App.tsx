@@ -8,6 +8,8 @@ import AdminDashboard from './pages/AdminDashboard';
 import OwnerDashboard from './pages/OwnerDashboard';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import Home from "./pages/Home";
+
 
 /**
  * ARCHITECTURE OVERVIEW: Brotherhood Clothing
