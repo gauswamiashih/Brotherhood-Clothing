@@ -1,31 +1,13 @@
+import React from 'react';
+import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 
-import React, { useState } from 'react';
-import { HashRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import Home from './pages/Home';
-import ShopsList from './pages/ShopsList';
-import ShopProfile from './pages/ShopProfile';
-import AdminDashboard from './pages/AdminDashboard';
-import OwnerDashboard from './pages/OwnerDashboard';
-import Navbar from './components/Navbar';
-import Footer from './components/Footer';
-import Home from "./pages/Home";
-
-
-/**
- * ARCHITECTURE OVERVIEW: Brotherhood Clothing
- * 
- * 1. FRONTEND (Framer/React):
- *    - Responsibilities: UI/UX Rendering, Search Logic, Route Management, State Management (Zustand/Context).
- *    - Tech: React 18, Tailwind (for visual fidelity), Framer Motion (for animations).
- * 
- * 2. BACKEND (YouBase/YouWare):
- *    - Responsibilities: Auth (JWT), Database (PostgreSQL/NoSQL), Storage (Cloudinary/S3), API Gateway.
- *    - Data Flow: Framer Components -> YouBase REST API -> Database.
- * 
- * 3. SECURITY:
- *    - Role-based Access Control (RBAC).
- *    - Admin approval workflow for new shops.
- */
+import Home from './Home';
+import ShopsList from './ShopsList';
+import ShopProfile from './ShopProfile';
+import AdminDashboard from './AdminDashboard';
+import OwnerDashboard from './OwnerDashboard';
+import Navbar from './Navbar';
+import Footer from './Footer';
 
 const App: React.FC = () => {
   return (
