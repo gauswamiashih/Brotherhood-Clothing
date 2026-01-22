@@ -18,27 +18,42 @@ export enum UserRole {
   ADMIN = 'Admin'
 }
 
+export interface ShopMedia {
+  id: string;
+  url: string;
+  type: 'image' | 'video';
+  isPinned: boolean;
+  createdAt: number;
+}
+
 export interface User {
   id: string;
   name: string;
   email: string;
   picture: string;
   role: UserRole;
+  followedShopIds: string[];
+  createdAt: number;
 }
 
 export interface Shop {
   id: string;
   ownerId: string;
-  name: string;
   ownerName: string;
+  shopName: string;
   phone: string;
   email: string;
   city: string;
+  address: string;
+  instagramUrl?: string;
   category: ShopCategory;
-  instagram?: string;
-  images: string[];
+  logoUrl: string;
+  media: ShopMedia[];
   status: ShopStatus;
   isFounder: boolean;
   followersCount: number;
+  followingCount: number;
   description: string;
+  bio: string;
+  createdAt: number;
 }

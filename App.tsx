@@ -1,16 +1,50 @@
 
 import React, { useState, useEffect, createContext, useContext } from 'react';
-import { HashRouter as Router, Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom';
-import { User, Shop, UserRole, ShopStatus, ShopCategory } from './types';
-import { getShops, getCurrentUser, loginUser, logoutUser, saveShop, generateId } from './store';
+import { HashRouter as Router, Routes, Route, Link, useNavigate, Navigate, useParams, useLocation } from 'react-router-dom';
+import { initializeApp } from 'firebase/app';
+// Fix: Consolidate Firebase Auth imports and remove unused User type which was causing export errors
+import { 
+  getAuth, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  onAuthStateChanged, 
+  signOut
+} from 'firebase/auth';
+import { User, Shop, UserRole, ShopStatus, ShopCategory, ShopMedia } from './types';
+import { 
+  getShops, 
+  saveShop, 
+  generateId, 
+  toggleFollowShop, 
+  getPublicMarketplaceShops, 
+  getShopsByStatus,
+  getUserProfile,
+  saveUserProfile
+} from './store';
 import { Icons, FOUNDER_SHOP } from './constants';
+
+// --- Firebase Configuration ---
+const firebaseConfig = {
+  apiKey: "AIzaSyB-brotherhood-dummy-key", 
+  authDomain: "brotherhood-clothing.firebaseapp.com",
+  projectId: "brotherhood-clothing",
+  storageBucket: "brotherhood-clothing.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123456789:web:abcdef"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
 
 // --- Context ---
 interface AuthContextType {
   user: User | null;
-  login: () => void;
-  logout: () => void;
+  loading: boolean;
+  login: () => Promise<void>;
+  logout: () => Promise<void>;
   isAdmin: boolean;
+  updateUser: (user: User) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,43 +58,48 @@ const useAuth = () => {
 // --- Components ---
 
 const Header: React.FC = () => {
-  const { user, login, logout } = useAuth();
+  const { user, login, logout, loading } = useAuth();
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 50);
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   return (
-    <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? 'glass py-3' : 'bg-transparent py-6'}`}>
+    <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isScrolled ? 'glass py-3 shadow-2xl' : 'bg-transparent py-8'}`}>
       <div className="container mx-auto px-6 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 group">
-          <span className="font-display text-2xl font-bold gold-gradient bg-clip-text text-transparent group-hover:scale-105 transition-transform">
-            BROTHERHOOD
-          </span>
-          <span className="text-luxury-gold text-xs font-accent tracking-widest hidden sm:block">CLOTHING</span>
+        <Link to="/" className="flex items-center gap-3 group">
+          <div className="w-10 h-10 rounded-lg gold-gradient flex items-center justify-center font-display font-black text-luxury-black group-hover:rotate-12 transition-transform">B</div>
+          <div className="flex flex-col">
+            <span className="font-display text-xl font-extrabold tracking-tight gold-gradient bg-clip-text text-transparent">
+              BROTHERHOOD
+            </span>
+            <span className="text-[10px] text-luxury-gold font-accent tracking-[0.3em] font-bold uppercase">Clothing</span>
+          </div>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-8 text-sm font-medium tracking-wide">
-          <Link to="/" className="hover:text-luxury-gold transition-colors">EXPLORE</Link>
-          <Link to="/register-shop" className="hover:text-luxury-gold transition-colors">REGISTER SHOP</Link>
-          <Link to="/about" className="hover:text-luxury-gold transition-colors">ABOUT</Link>
+        <nav className="hidden lg:flex items-center gap-10 text-[11px] font-bold tracking-[0.2em] uppercase text-gray-400">
+          <Link to="/" className="hover:text-white transition-colors">Marketplace</Link>
+          <Link to="/register-shop" className="hover:text-white transition-colors">Partner With Us</Link>
+          <Link to="/about" className="hover:text-white transition-colors">Our Story</Link>
         </nav>
 
-        <div className="flex items-center gap-4">
-          {user ? (
+        <div className="flex items-center gap-6">
+          {loading ? (
+            <div className="w-8 h-8 border-2 border-luxury-gold border-t-transparent rounded-full animate-spin"></div>
+          ) : user ? (
             <div className="flex items-center gap-4">
-              <Link to="/dashboard" className="flex items-center gap-3 glass hover:bg-white/10 px-4 py-2 rounded-full transition-all">
-                <img src={user.picture} alt={user.name} className="w-8 h-8 rounded-full border border-luxury-gold" />
-                <span className="hidden sm:block text-sm font-semibold">{user.name}</span>
+              <Link to="/dashboard" className="flex items-center gap-3 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl border border-white/5 transition-all group">
+                <img src={user.picture} alt={user.name} className="w-8 h-8 rounded-full border border-luxury-gold group-hover:scale-110 transition-transform" />
+                <span className="hidden sm:block text-xs font-bold uppercase tracking-widest">{user.name.split(' ')[0]}</span>
               </Link>
-              <button onClick={logout} className="text-sm text-gray-400 hover:text-white transition-colors">Logout</button>
+              <button onClick={logout} className="text-[10px] font-bold text-gray-500 hover:text-white uppercase tracking-widest transition-colors hidden md:block">Logout</button>
             </div>
           ) : (
-            <button onClick={login} className="gold-gradient text-luxury-black font-bold px-6 py-2 rounded-full hover:scale-105 transition-all text-sm shadow-lg shadow-luxury-gold/20">
-              LOGIN WITH GOOGLE
+            <button onClick={login} className="gold-gradient text-luxury-black font-bold px-8 py-3 rounded-xl hover:scale-105 transition-all text-[11px] tracking-widest shadow-xl shadow-luxury-gold/10">
+              LOGIN
             </button>
           )}
         </div>
@@ -69,104 +108,78 @@ const Header: React.FC = () => {
   );
 };
 
-const Footer: React.FC = () => {
-  return (
-    <footer className="bg-luxury-charcoal border-t border-white/5 py-12 mt-20">
-      <div className="container mx-auto px-6 grid grid-cols-1 md:grid-cols-12 gap-12">
-        <div className="md:col-span-5">
-          <h3 className="font-display text-2xl font-bold gold-gradient bg-clip-text text-transparent mb-4">BROTHERHOOD CLOTHING</h3>
-          <p className="text-gray-400 max-w-sm mb-6 leading-relaxed">
-            Elevating Palanpur's fashion landscape by connecting the community's finest boutiques and creators in one luxury marketplace.
-          </p>
-          <div className="flex gap-4">
-            <a href={FOUNDER_SHOP.instagram} target="_blank" rel="noreferrer" className="w-10 h-10 flex items-center justify-center rounded-full glass hover:text-luxury-gold transition-all">
-              <Icons.Instagram />
-            </a>
-          </div>
-        </div>
-        
-        <div className="md:col-span-3">
-          <h4 className="text-luxury-gold font-bold mb-4 uppercase tracking-widest text-xs">FOUNDER</h4>
-          <p className="text-white font-semibold">Ashish Gauswami</p>
-          <p className="text-gray-400 text-sm mt-1">gauswamiashish760@gmail.com</p>
-          <p className="text-gray-400 text-sm">9664592743</p>
-        </div>
-
-        <div className="md:col-span-4">
-          <h4 className="text-luxury-gold font-bold mb-4 uppercase tracking-widest text-xs">JOIN THE MARKET</h4>
-          <p className="text-gray-400 text-sm mb-6">Own a shop in Palanpur? Register today and reach thousands of fashion enthusiasts.</p>
-          <Link to="/register-shop" className="inline-flex items-center text-luxury-gold font-bold group">
-            BECOME A PARTNER <Icons.ArrowRight />
-          </Link>
-        </div>
-      </div>
-      <div className="container mx-auto px-6 border-t border-white/5 mt-12 pt-8 flex flex-col sm:row items-center justify-between text-xs text-gray-500">
-        <p>&copy; 2024 Brotherhood Clothing. Built for Palanpur Fashion.</p>
-        <p>Crafted with Excellence.</p>
-      </div>
-    </footer>
-  );
-};
-
-// --- Page Components ---
-
 const Home: React.FC = () => {
   const [shops, setShops] = useState<Shop[]>([]);
 
   useEffect(() => {
-    setShops(getShops().filter(s => s.status === ShopStatus.APPROVED));
+    setShops(getPublicMarketplaceShops());
   }, []);
 
   return (
-    <div className="pt-32 pb-20">
-      <section className="container mx-auto px-6 mb-20 text-center">
-        <h1 className="font-display text-5xl md:text-7xl font-bold mb-6">
-          Palanpur's <span className="gold-gradient bg-clip-text text-transparent">Elite</span> <br /> Fashion Market
+    <div className="pt-32 lg:pt-40 pb-32">
+      <section className="container mx-auto px-6 mb-20 lg:mb-24 text-center">
+        <div className="inline-block px-4 py-1.5 rounded-full border border-luxury-gold/20 mb-6 bg-luxury-gold/5">
+          <span className="text-[10px] font-bold text-luxury-gold uppercase tracking-[0.3em]">Palanpur's Fashion Market</span>
+        </div>
+        <h1 className="font-display text-5xl md:text-8xl font-black mb-8 leading-[1.1] md:leading-[0.9]">
+          The New Standard <br className="hidden md:block" /> of <span className="gold-gradient bg-clip-text text-transparent">Elite Fashion</span>
         </h1>
-        <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed font-light">
-          Experience the curated collections of Palanpur's finest fashion houses. Premium style, local soul.
+        <p className="text-gray-400 text-base md:text-xl max-w-2xl mx-auto leading-relaxed font-light mb-10 md:mb-12">
+          Discover curated boutiques, artisanal creators, and premium clothing houses from the heart of Gujarat.
         </p>
+        <div className="flex flex-wrap justify-center gap-4">
+          <Link to="/register-shop" className="w-full sm:w-auto gold-gradient text-luxury-black font-black px-10 py-4 rounded-xl hover:scale-105 transition-all shadow-2xl text-xs tracking-widest uppercase">
+            REGISTER YOUR SHOP
+          </Link>
+          <Link to="/about" className="w-full sm:w-auto px-10 py-4 border border-white/10 hover:bg-white/5 rounded-xl transition-all font-bold text-xs tracking-widest uppercase">
+            LEARN OUR STORY
+          </Link>
+        </div>
       </section>
 
       <section className="container mx-auto px-6">
-        <div className="flex items-center justify-between mb-10">
-          <h2 className="text-2xl font-display font-bold">Featured Boutiques</h2>
-          <div className="h-px flex-1 bg-white/10 mx-8 hidden sm:block"></div>
-          <div className="flex gap-2">
-            <span className="bg-luxury-gold text-luxury-black px-3 py-1 rounded text-xs font-bold">ALL</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-10">
           {shops.map((shop) => (
-            <Link key={shop.id} to={`/shop/${shop.id}`} className="group relative bg-luxury-charcoal rounded-2xl overflow-hidden border border-white/5 hover:border-luxury-gold/30 transition-all duration-500 hover:-translate-y-1">
-              {shop.isFounder && (
-                <div className="absolute top-4 left-4 z-10 bg-luxury-gold text-luxury-black text-[10px] font-bold px-3 py-1 rounded-full shadow-lg">
-                  FOUNDER
+            <Link key={shop.id} to={`/shop/${shop.id}`} className="group bg-luxury-charcoal/50 rounded-3xl overflow-hidden border border-white/5 hover:border-luxury-gold/20 transition-all duration-500 hover:-translate-y-2">
+              <div className="h-64 md:h-72 overflow-hidden relative">
+                <img src={shop.media.find(m => m.isPinned)?.url || shop.media[0]?.url} alt={shop.shopName} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 opacity-60 group-hover:opacity-100" />
+                <div className="absolute inset-0 bg-gradient-to-t from-luxury-black via-luxury-black/30 to-transparent"></div>
+                <div className="absolute top-6 left-6 flex flex-col gap-2">
+                  {shop.isFounder && (
+                    <div className="bg-luxury-gold text-luxury-black text-[9px] font-black px-3 py-1 rounded-md shadow-2xl uppercase tracking-tighter flex items-center gap-1">
+                      <Icons.Verified size={3} color="text-luxury-black" /> FOUNDER
+                    </div>
+                  )}
+                  <div className="glass text-white text-[9px] font-black px-3 py-1 rounded-md uppercase tracking-tighter">
+                    {shop.category} Wear
+                  </div>
                 </div>
-              )}
-              <div className="h-64 overflow-hidden relative">
-                <img src={shop.images[0]} alt={shop.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-80 group-hover:opacity-100" />
-                <div className="absolute inset-0 bg-gradient-to-t from-luxury-black to-transparent"></div>
+                <div className="absolute bottom-6 left-6 flex items-center gap-4">
+                  <div className="w-12 h-12 md:w-14 md:h-14 rounded-full border-2 border-luxury-gold p-0.5 bg-luxury-black shrink-0 shadow-2xl">
+                    <img src={shop.logoUrl} className="w-full h-full object-cover rounded-full" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg md:text-xl font-display font-bold text-white flex items-center gap-2">
+                      {shop.shopName}
+                    </h3>
+                    <p className="text-gray-400 text-[9px] uppercase tracking-widest font-bold">{shop.ownerName}</p>
+                  </div>
+                </div>
               </div>
-              <div className="p-6 relative">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xl font-bold flex items-center gap-2">
-                    {shop.name}
-                    {shop.isFounder && <Icons.Verified />}
-                  </h3>
-                  <span className="text-xs text-gray-500 font-medium">{shop.category}</span>
-                </div>
-                <p className="text-gray-400 text-sm line-clamp-2 mb-6 font-light">
-                  {shop.description}
+              <div className="p-8">
+                <p className="text-gray-500 text-xs md:text-sm leading-relaxed mb-8 line-clamp-2 font-light italic">
+                   "{shop.description}"
                 </p>
-                <div className="flex items-center justify-between pt-4 border-t border-white/5">
-                  <span className="text-xs text-gray-400 font-medium">
-                    {shop.followersCount.toLocaleString()} Followers
-                  </span>
-                  <span className="text-luxury-gold text-xs font-bold group-hover:translate-x-1 transition-transform inline-flex items-center">
-                    VIEW PROFILE <Icons.ArrowRight />
-                  </span>
+                <div className="flex items-center justify-between pt-6 border-t border-white/5">
+                  <div className="flex flex-col">
+                    <span className="text-white font-bold text-base md:text-lg">{shop.followersCount.toLocaleString()}</span>
+                    <span className="text-[9px] text-gray-600 uppercase font-black tracking-widest">Followers</span>
+                  </div>
+                  <div className="flex flex-col text-right">
+                    <span className="text-luxury-gold font-black text-[10px] tracking-widest group-hover:translate-x-1 transition-transform inline-flex items-center uppercase">
+                      VIEW PROFILE <Icons.ArrowRight />
+                    </span>
+                  </div>
                 </div>
               </div>
             </Link>
@@ -177,71 +190,86 @@ const Home: React.FC = () => {
   );
 };
 
-const ShopProfile: React.FC<{ id?: string }> = ({ id }) => {
+const ShopProfile: React.FC = () => {
+  const { id } = useParams();
+  const { user, updateUser, login } = useAuth();
   const [shop, setShop] = useState<Shop | null>(null);
-  const [isFollowing, setIsFollowing] = useState(false);
-  const navigate = useNavigate();
+  const isFollowing = user?.followedShopIds.includes(id || '') || false;
 
   useEffect(() => {
     const shops = getShops();
     const found = shops.find(s => s.id === id);
     if (found) setShop(found);
+    window.scrollTo(0, 0);
   }, [id]);
+
+  const handleFollow = () => {
+    if (!user) {
+      login();
+      return;
+    }
+    const result = toggleFollowShop(user.id, shop!.id);
+    if (result) {
+      updateUser(result.user);
+      setShop(result.shop);
+    }
+  };
 
   if (!shop) return <div className="pt-40 text-center">Shop not found.</div>;
 
+  const displayMedia = [...shop.media].sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
+
   return (
-    <div className="pt-32 pb-20">
-      <div className="container mx-auto px-6 max-w-5xl">
-        {/* Instagram style Header */}
-        <div className="flex flex-col md:flex-row items-center gap-10 mb-16 pb-16 border-b border-white/5">
-          <div className="w-40 h-40 md:w-52 md:h-52 rounded-full overflow-hidden border-4 border-luxury-gold p-1 shrink-0">
-            <img src={shop.images[0]} alt={shop.name} className="w-full h-full object-cover rounded-full" />
+    <div className="pt-24 lg:pt-40 pb-32">
+      <div className="container mx-auto px-4 max-w-4xl">
+        <div className="flex flex-col md:flex-row items-center md:items-start gap-8 md:gap-12 mb-10 md:mb-16 pb-12 md:pb-16 border-b border-white/5">
+          <div className="w-28 h-28 md:w-44 md:h-44 rounded-full p-1 border-2 border-luxury-gold shrink-0 bg-luxury-black shadow-2xl">
+            <img src={shop.logoUrl} alt={shop.shopName} className="w-full h-full object-cover rounded-full" />
           </div>
           <div className="flex-1 text-center md:text-left">
-            <div className="flex flex-col md:flex-row items-center gap-4 mb-6">
-              <h1 className="text-3xl font-display font-bold flex items-center gap-2">
-                {shop.name}
-                {shop.isFounder && <Icons.Verified />}
+            <div className="flex flex-col md:flex-row md:items-center gap-4 mb-6 md:mb-8">
+              <h1 className="text-2xl md:text-3xl font-display font-bold flex items-center justify-center md:justify-start gap-2">
+                {shop.shopName}
+                {shop.isFounder && <Icons.Verified size={6} />}
               </h1>
-              <div className="flex gap-3">
+              <div className="flex justify-center md:justify-start gap-2">
                 <button 
-                  onClick={() => setIsFollowing(!isFollowing)}
-                  className={`px-8 py-2 rounded-lg font-bold text-sm transition-all ${isFollowing ? 'bg-white/10 text-white' : 'gold-gradient text-luxury-black'}`}
+                  onClick={handleFollow}
+                  className={`px-6 md:px-8 py-2 rounded-lg font-black text-[10px] tracking-widest transition-all ${isFollowing ? 'bg-white/10 text-white border border-white/10' : 'gold-gradient text-luxury-black shadow-xl shadow-luxury-gold/20'}`}
                 >
                   {isFollowing ? 'FOLLOWING' : 'FOLLOW'}
                 </button>
-                <a href={shop.instagram} target="_blank" rel="noreferrer" className="px-6 py-2 bg-luxury-charcoal border border-white/10 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-white/5 transition-all">
-                   <Icons.Instagram /> INSTAGRAM
-                </a>
+                {shop.instagramUrl && (
+                  <a href={shop.instagramUrl} target="_blank" rel="noreferrer" className="px-4 py-2 glass hover:bg-white/5 rounded-lg flex items-center gap-2 text-white border border-white/5 transition-all">
+                    <Icons.Instagram />
+                  </a>
+                )}
               </div>
             </div>
-            
-            <div className="flex justify-center md:justify-start gap-10 mb-6 text-sm">
-              <div><span className="font-bold text-white">{shop.images.length}</span> <span className="text-gray-500">Gallery</span></div>
-              <div><span className="font-bold text-white">{(shop.followersCount + (isFollowing ? 1 : 0)).toLocaleString()}</span> <span className="text-gray-500">Followers</span></div>
-              <div><span className="font-bold text-white">128</span> <span className="text-gray-500">Following</span></div>
+            <div className="flex justify-center md:justify-start gap-8 md:gap-12 mb-8 border-y md:border-none border-white/5 py-4 md:py-0">
+              <div className="text-center md:text-left"><span className="text-white font-bold block md:inline text-base">{shop.media.length}</span> <span className="text-gray-500 text-[10px] uppercase font-bold tracking-widest ml-1">Posts</span></div>
+              <div className="text-center md:text-left"><span className="text-white font-bold block md:inline text-base">{shop.followersCount.toLocaleString()}</span> <span className="text-gray-500 text-[10px] uppercase font-bold tracking-widest ml-1">Followers</span></div>
+              <div className="text-center md:text-left"><span className="text-white font-bold block md:inline text-base">{shop.followingCount}</span> <span className="text-gray-500 text-[10px] uppercase font-bold tracking-widest ml-1">Following</span></div>
             </div>
-
-            <div className="space-y-2">
-              <p className="font-bold text-white">{shop.ownerName}</p>
-              <p className="text-gray-400 font-light leading-relaxed">{shop.description}</p>
-              <div className="flex flex-col gap-1 mt-4 text-sm text-gray-400">
-                <div className="flex items-center gap-2"><Icons.Location /> {shop.city}</div>
-                <div className="flex items-center gap-2"><Icons.Phone /> {shop.phone}</div>
+            <div className="space-y-1">
+              <p className="font-bold text-sm text-white">{shop.ownerName}</p>
+              <p className="text-gray-400 text-sm font-light leading-relaxed max-w-lg">{shop.bio}</p>
+              <div className="flex flex-wrap justify-center md:justify-start gap-4 mt-6 text-[10px] text-gray-500 font-bold uppercase tracking-[0.2em]">
+                <div className="flex items-center gap-1.5"><Icons.ArrowRight /> {shop.city}</div>
+                <div className="flex items-center gap-1.5"><Icons.ArrowRight /> {shop.category} Wear</div>
               </div>
             </div>
           </div>
         </div>
-
-        {/* Gallery Grid */}
-        <div className="grid grid-cols-3 gap-2 md:gap-8">
-          {shop.images.map((img, idx) => (
-            <div key={idx} className="aspect-square relative group cursor-pointer overflow-hidden rounded-lg">
-              <img src={img} alt={`${shop.name} gallery ${idx}`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                 <span className="text-white font-bold text-sm">VIEW</span>
-              </div>
+        <div className="grid grid-cols-3 gap-1 md:gap-4">
+          {displayMedia.map((media) => (
+            <div key={media.id} className="aspect-square relative group cursor-pointer overflow-hidden rounded-md md:rounded-xl bg-luxury-charcoal">
+              <img src={media.url} alt={`${shop.shopName} post`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              {media.isPinned && (
+                <div className="absolute top-2 right-2 md:top-4 md:right-4 gold-gradient p-1 md:p-1.5 rounded-full shadow-lg">
+                  <Icons.Pin />
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -252,26 +280,27 @@ const ShopProfile: React.FC<{ id?: string }> = ({ id }) => {
 
 const RegisterShop: React.FC = () => {
   const { user, login } = useAuth();
-  const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    name: '',
+    shopName: '',
     ownerName: '',
     phone: '',
     email: '',
     city: 'Palanpur',
+    address: '',
     category: ShopCategory.ALL,
-    instagram: '',
-    description: ''
+    instagramUrl: '',
+    description: '',
+    bio: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
   if (!user) {
     return (
-      <div className="pt-40 pb-20 text-center container mx-auto px-6">
-        <h2 className="text-3xl font-display font-bold mb-6">Start Your Journey</h2>
-        <p className="text-gray-400 mb-8 max-w-md mx-auto">Please login with Google to register your shop and join the Brotherhood Clothing market.</p>
-        <button onClick={login} className="gold-gradient text-luxury-black font-bold px-10 py-4 rounded-full hover:scale-105 transition-all shadow-xl">
+      <div className="pt-40 pb-40 text-center container mx-auto px-6">
+        <h2 className="text-4xl font-display font-bold mb-6 italic">Partner With Us</h2>
+        <p className="text-gray-400 mb-10 max-w-md mx-auto leading-relaxed">Join the exclusive brotherhood of Palanpur's fashion leaders.</p>
+        <button onClick={login} className="gold-gradient text-luxury-black font-black px-12 py-4 rounded-xl hover:scale-105 transition-all shadow-2xl text-xs tracking-widest uppercase">
           LOGIN TO CONTINUE
         </button>
       </div>
@@ -281,29 +310,28 @@ const RegisterShop: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
     setTimeout(() => {
       const newShop: Shop = {
         id: generateId(),
         ownerId: user.id,
-        name: formData.name,
+        shopName: formData.shopName,
         ownerName: formData.ownerName,
         phone: formData.phone,
         email: formData.email,
         city: formData.city,
+        address: formData.address,
         category: formData.category,
-        instagram: formData.instagram,
-        description: formData.description,
-        images: [
-          `https://picsum.photos/seed/${Math.random()}/800/600`,
-          `https://picsum.photos/seed/${Math.random()}/800/600`,
-          `https://picsum.photos/seed/${Math.random()}/800/600`
-        ],
+        instagramUrl: formData.instagramUrl,
+        logoUrl: `https://images.unsplash.com/photo-1599305090598-fe179d501227?auto=format&fit=crop&q=80&w=200&h=200`,
+        media: [],
         status: ShopStatus.PENDING,
         isFounder: false,
-        followersCount: 0
+        followersCount: 0,
+        followingCount: 0,
+        description: formData.description,
+        bio: formData.bio,
+        createdAt: Date.now()
       };
-      
       saveShop(newShop);
       setIsSubmitting(false);
       setSuccess(true);
@@ -312,15 +340,10 @@ const RegisterShop: React.FC = () => {
 
   if (success) {
     return (
-      <div className="pt-40 pb-20 text-center container mx-auto px-6">
-        <div className="w-20 h-20 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
-          <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
-        <h2 className="text-3xl font-display font-bold mb-4">Registration Submitted!</h2>
-        <p className="text-gray-400 mb-8 max-w-md mx-auto">Your shop is currently under review by our admin. Once approved, it will be visible on the explore page. Check your dashboard for status updates.</p>
-        <Link to="/dashboard" className="px-10 py-4 glass rounded-full font-bold hover:bg-white/10 transition-all">
+      <div className="pt-40 pb-40 text-center container mx-auto px-6">
+        <h2 className="text-4xl font-display font-bold mb-4 italic">Boutique Registered</h2>
+        <p className="text-gray-500 mb-10">Your application is now under review by Ashish.</p>
+        <Link to="/dashboard" className="px-12 py-4 gold-gradient text-luxury-black rounded-xl font-black uppercase text-xs">
           GO TO DASHBOARD
         </Link>
       </div>
@@ -328,107 +351,21 @@ const RegisterShop: React.FC = () => {
   }
 
   return (
-    <div className="pt-32 pb-20">
-      <div className="container mx-auto px-6 max-w-3xl">
-        <div className="mb-12">
-          <h1 className="text-4xl font-display font-bold mb-4">Register Your Boutique</h1>
-          <p className="text-gray-400">Provide your shop details to join Palanpur's premier fashion network.</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="glass p-8 rounded-3xl space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-luxury-gold uppercase tracking-widest">Shop Name</label>
-              <input 
-                required
-                type="text" 
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-luxury-gold transition-all"
-                placeholder="e.g. Elegant Attire"
-                value={formData.name}
-                onChange={e => setFormData({...formData, name: e.target.value})}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-luxury-gold uppercase tracking-widest">Owner Name</label>
-              <input 
-                required
-                type="text" 
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-luxury-gold transition-all"
-                placeholder="Full Name"
-                value={formData.ownerName}
-                onChange={e => setFormData({...formData, ownerName: e.target.value})}
-              />
-            </div>
+    <div className="pt-32 lg:pt-40 pb-32">
+      <div className="container mx-auto px-4 max-w-2xl">
+        <h1 className="text-3xl font-display font-bold mb-10 text-center italic">Marketplace Registration</h1>
+        <form onSubmit={handleSubmit} className="bg-luxury-charcoal/30 border border-white/5 p-8 rounded-3xl space-y-6">
+          <input required type="text" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 focus:border-luxury-gold outline-none" placeholder="Shop Name" value={formData.shopName} onChange={e => setFormData({...formData, shopName: e.target.value})} />
+          <input required type="text" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 focus:border-luxury-gold outline-none" placeholder="Owner Name" value={formData.ownerName} onChange={e => setFormData({...formData, ownerName: e.target.value})} />
+          <div className="grid grid-cols-2 gap-4">
+            <input required type="tel" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 focus:border-luxury-gold outline-none" placeholder="Phone" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+            <input required type="email" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 focus:border-luxury-gold outline-none" placeholder="Business Email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-luxury-gold uppercase tracking-widest">Phone Number</label>
-              <input 
-                required
-                type="tel" 
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-luxury-gold transition-all"
-                placeholder="9998887776"
-                value={formData.phone}
-                onChange={e => setFormData({...formData, phone: e.target.value})}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-luxury-gold uppercase tracking-widest">Email Address</label>
-              <input 
-                required
-                type="email" 
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-luxury-gold transition-all"
-                placeholder="shop@example.com"
-                value={formData.email}
-                onChange={e => setFormData({...formData, email: e.target.value})}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-luxury-gold uppercase tracking-widest">Category</label>
-              <select 
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-luxury-gold transition-all"
-                value={formData.category}
-                onChange={e => setFormData({...formData, category: e.target.value as ShopCategory})}
-              >
-                {Object.values(ShopCategory).map(cat => (
-                  <option key={cat} value={cat} className="bg-luxury-black">{cat}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-luxury-gold uppercase tracking-widest">Instagram Link (Optional)</label>
-              <input 
-                type="url" 
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-luxury-gold transition-all"
-                placeholder="https://instagram.com/yourshop"
-                value={formData.instagram}
-                onChange={e => setFormData({...formData, instagram: e.target.value})}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-luxury-gold uppercase tracking-widest">Shop Description</label>
-            <textarea 
-              required
-              rows={4}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-luxury-gold transition-all"
-              placeholder="Tell us about your style and what makes your shop unique..."
-              value={formData.description}
-              onChange={e => setFormData({...formData, description: e.target.value})}
-            />
-          </div>
-
-          <button 
-            disabled={isSubmitting}
-            type="submit" 
-            className="w-full gold-gradient text-luxury-black font-bold py-4 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? 'SUBMITTING...' : 'SUBMIT REGISTRATION'}
+          <input required type="text" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 focus:border-luxury-gold outline-none" placeholder="Shop Address" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+          <input type="url" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 focus:border-luxury-gold outline-none" placeholder="Instagram Profile Link" value={formData.instagramUrl} onChange={e => setFormData({...formData, instagramUrl: e.target.value})} />
+          <textarea required rows={4} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 focus:border-luxury-gold outline-none" placeholder="Shop Description" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+          <button disabled={isSubmitting} type="submit" className="w-full gold-gradient text-luxury-black font-black py-4 rounded-xl uppercase tracking-widest text-xs">
+            {isSubmitting ? 'PROCESSING...' : 'SUBMIT FOR APPROVAL'}
           </button>
         </form>
       </div>
@@ -439,242 +376,258 @@ const RegisterShop: React.FC = () => {
 const Dashboard: React.FC = () => {
   const { user, isAdmin } = useAuth();
   const [userShops, setUserShops] = useState<Shop[]>([]);
-  const [allShops, setAllShops] = useState<Shop[]>([]);
-  const [activeTab, setActiveTab] = useState<'my-shop' | 'admin'>('my-shop');
+  const [activeTab, setActiveTab] = useState<'my-shop' | 'admin-queue'>('my-shop');
+  const [pendingShops, setPendingShops] = useState<Shop[]>([]);
 
   useEffect(() => {
     const shops = getShops();
-    if (isAdmin) {
-      setAllShops(shops);
-    }
     setUserShops(shops.filter(s => s.ownerId === user?.id));
+    if (isAdmin) {
+      setPendingShops(getShopsByStatus(ShopStatus.PENDING));
+    }
   }, [user, isAdmin]);
 
-  const handleApprove = (id: string) => {
+  const handleAction = (id: string, status: ShopStatus) => {
     const shops = getShops();
-    const idx = shops.findIndex(s => s.id === id);
-    if (idx >= 0) {
-      shops[idx].status = ShopStatus.APPROVED;
-      saveShop(shops[idx]);
-      setAllShops([...shops]);
-    }
-  };
-
-  const handleBlock = (id: string) => {
-    const shops = getShops();
-    const idx = shops.findIndex(s => s.id === id);
-    if (idx >= 0) {
-      shops[idx].status = ShopStatus.BLOCKED;
-      saveShop(shops[idx]);
-      setAllShops([...shops]);
+    const shop = shops.find(s => s.id === id);
+    if (shop) {
+      shop.status = status;
+      saveShop(shop);
+      setPendingShops(getShopsByStatus(ShopStatus.PENDING));
     }
   };
 
   return (
-    <div className="pt-32 pb-20">
-      <div className="container mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-10">
-        {/* Sidebar */}
-        <div className="lg:col-span-3 space-y-2">
-          <div className="glass p-6 rounded-2xl mb-6 flex items-center gap-4">
-            <img src={user?.picture} alt={user?.name} className="w-12 h-12 rounded-full border border-luxury-gold" />
-            <div>
-              <p className="font-bold text-sm">{user?.name}</p>
-              <p className="text-[10px] text-luxury-gold font-bold uppercase tracking-widest">{user?.role}</p>
-            </div>
-          </div>
-          
-          <button 
-            onClick={() => setActiveTab('my-shop')}
-            className={`w-full text-left px-6 py-4 rounded-xl font-bold transition-all flex items-center justify-between ${activeTab === 'my-shop' ? 'gold-gradient text-luxury-black' : 'hover:bg-white/5'}`}
-          >
-            MY SHOP 
-          </button>
-          
+    <div className="pt-32 lg:pt-40 pb-32 min-h-screen">
+      <div className="container mx-auto px-6">
+        <div className="flex gap-4 mb-10">
+          <button onClick={() => setActiveTab('my-shop')} className={`px-6 py-2 rounded-lg font-black text-xs uppercase tracking-widest transition-all ${activeTab === 'my-shop' ? 'gold-gradient text-luxury-black' : 'text-gray-500 hover:text-white'}`}>My Portfolio</button>
           {isAdmin && (
-            <button 
-              onClick={() => setActiveTab('admin')}
-              className={`w-full text-left px-6 py-4 rounded-xl font-bold transition-all flex items-center justify-between ${activeTab === 'admin' ? 'purple-gradient text-white' : 'hover:bg-white/5'}`}
-            >
-              ADMIN PANEL
-            </button>
+            <button onClick={() => setActiveTab('admin-queue')} className={`px-6 py-2 rounded-lg font-black text-xs uppercase tracking-widest transition-all ${activeTab === 'admin-queue' ? 'purple-gradient text-white' : 'text-gray-500 hover:text-white'}`}>Admin Queue ({pendingShops.length})</button>
           )}
-
-          <div className="pt-10">
-            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest px-6 mb-4">Support</p>
-            <button className="w-full text-left px-6 py-3 rounded-xl hover:bg-white/5 text-gray-400 text-sm font-medium">Contact Admin</button>
-            <button className="w-full text-left px-6 py-3 rounded-xl hover:bg-white/5 text-gray-400 text-sm font-medium">Account Settings</button>
-          </div>
         </div>
 
-        {/* Content */}
-        <div className="lg:col-span-9">
-          {activeTab === 'my-shop' && (
-            <div className="space-y-8">
-              <h2 className="text-3xl font-display font-bold">Manage Your Shops</h2>
-              
-              {userShops.length === 0 ? (
-                <div className="glass p-20 text-center rounded-3xl">
-                  <p className="text-gray-500 mb-6">You haven't registered any shops yet.</p>
-                  <Link to="/register-shop" className="gold-gradient text-luxury-black font-bold px-8 py-3 rounded-full hover:scale-105 transition-all">
-                    REGISTER NOW
-                  </Link>
+        {activeTab === 'my-shop' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {userShops.map(shop => (
+              <div key={shop.id} className="bg-luxury-charcoal/50 border border-white/5 rounded-3xl p-8 shadow-2xl">
+                <div className="flex items-center justify-between mb-8">
+                  <div className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${
+                    shop.status === ShopStatus.APPROVED ? 'bg-green-500/10 text-green-500' :
+                    shop.status === ShopStatus.PENDING ? 'bg-yellow-500/10 text-yellow-500' : 'bg-red-500/10 text-red-500'
+                  }`}>
+                    {shop.status}
+                  </div>
+                  <Link to={`/shop/${shop.id}`} className="text-luxury-gold text-[10px] font-black tracking-widest uppercase hover:underline">View Profile</Link>
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {userShops.map(shop => (
-                    <div key={shop.id} className="glass rounded-3xl p-6 relative overflow-hidden group">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
-                          shop.status === ShopStatus.APPROVED ? 'bg-green-500/10 text-green-500' :
-                          shop.status === ShopStatus.PENDING ? 'bg-yellow-500/10 text-yellow-500' : 'bg-red-500/10 text-red-500'
-                        }`}>
-                          {shop.status}
-                        </div>
-                        <Link to={`/shop/${shop.id}`} className="text-luxury-gold text-xs font-bold hover:underline">VIEW PROFILE</Link>
-                      </div>
-                      <h3 className="text-xl font-bold mb-2">{shop.name}</h3>
-                      <p className="text-gray-400 text-sm line-clamp-2 mb-6">{shop.description}</p>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <button className="bg-white/5 hover:bg-white/10 text-white font-bold py-2 rounded-xl text-sm transition-all">EDIT INFO</button>
-                        <button className="bg-white/5 hover:bg-white/10 text-white font-bold py-2 rounded-xl text-sm transition-all">MANAGE IMAGES</button>
-                      </div>
-                    </div>
-                  ))}
+                <h3 className="text-2xl font-display font-bold italic mb-4">{shop.shopName}</h3>
+                <p className="text-gray-500 text-sm mb-6 line-clamp-2">{shop.description}</p>
+                <div className="flex gap-4 border-t border-white/5 pt-6">
+                   <div className="text-center flex-1">
+                      <span className="block text-white font-bold">{shop.followersCount}</span>
+                      <span className="text-[8px] text-gray-500 uppercase font-black">Followers</span>
+                   </div>
+                   <div className="text-center flex-1">
+                      <span className="block text-white font-bold">{shop.media.length}</span>
+                      <span className="text-[8px] text-gray-500 uppercase font-black">Images</span>
+                   </div>
                 </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'admin' && isAdmin && (
-            <div className="space-y-8">
-              <h2 className="text-3xl font-display font-bold">Admin Controls</h2>
-              <div className="overflow-hidden rounded-2xl glass">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-white/5 text-luxury-gold font-bold uppercase text-[10px] tracking-widest">
-                    <tr>
-                      <th className="px-6 py-4">Shop Name</th>
-                      <th className="px-6 py-4">Owner</th>
-                      <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {allShops.filter(s => !s.isFounder).map(shop => (
-                      <tr key={shop.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="px-6 py-6 font-bold">{shop.name}</td>
-                        <td className="px-6 py-6 text-gray-400">{shop.ownerName}</td>
-                        <td className="px-6 py-6">
-                           <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${
-                              shop.status === ShopStatus.APPROVED ? 'bg-green-500/10 text-green-500' :
-                              shop.status === ShopStatus.PENDING ? 'bg-yellow-500/10 text-yellow-500' : 'bg-red-500/10 text-red-500'
-                           }`}>
-                            {shop.status}
-                           </span>
-                        </td>
-                        <td className="px-6 py-6 text-right space-x-2">
-                          {shop.status !== ShopStatus.APPROVED && (
-                            <button onClick={() => handleApprove(shop.id)} className="text-green-500 hover:text-green-400 font-bold text-xs uppercase">Approve</button>
-                          )}
-                          {shop.status !== ShopStatus.BLOCKED && (
-                            <button onClick={() => handleBlock(shop.id)} className="text-red-500 hover:text-red-400 font-bold text-xs uppercase">Block</button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <h2 className="text-3xl font-display font-bold mb-10 italic">Incoming Applications</h2>
+            {pendingShops.map(shop => (
+              <div key={shop.id} className="bg-luxury-charcoal border border-white/10 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-2xl transition-all hover:border-luxury-gold/30">
+                <div>
+                   <h4 className="text-xl font-bold text-white">{shop.shopName}</h4>
+                   <p className="text-gray-500 text-xs uppercase tracking-widest font-bold mb-1">{shop.ownerName} • {shop.phone}</p>
+                   <p className="text-gray-400 text-sm italic">"{shop.description}"</p>
+                </div>
+                <div className="flex gap-2">
+                   <button onClick={() => handleAction(shop.id, ShopStatus.APPROVED)} className="px-6 py-2 bg-green-500/10 text-green-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-green-500/20">Approve</button>
+                   <button onClick={() => handleAction(shop.id, ShopStatus.BLOCKED)} className="px-6 py-2 bg-red-500/10 text-red-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20">Block</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-// --- App Wrap ---
+const About = () => (
+  <div className="pt-32 lg:pt-40 pb-32 container mx-auto px-6 max-w-4xl text-center">
+    <div className="inline-block px-4 py-1.5 rounded-full border border-luxury-gold/20 mb-8 bg-luxury-gold/5">
+      <span className="text-[10px] font-bold text-luxury-gold uppercase tracking-[0.4em]">Founded in Palanpur</span>
+    </div>
+    <h1 className="text-5xl md:text-7xl font-display font-black mb-12 italic leading-tight">Elite <br className="hidden md:block" /> <span className="gold-gradient bg-clip-text text-transparent">Heritage</span></h1>
+    <p className="text-lg md:text-xl text-gray-500 font-light leading-relaxed mb-16 italic max-w-2xl mx-auto">
+      "Brotherhood Clothing represents the culmination of regional boutique excellence. We unify Palanpur's most dedicated fashion houses under one mark of luxury."
+    </p>
+    <div className="relative rounded-[3rem] overflow-hidden mb-20 shadow-2xl">
+       <img src="https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&q=80&w=1200" className="w-full h-[500px] object-cover opacity-40 grayscale hover:grayscale-0 transition-all duration-[2s]" />
+       <div className="absolute inset-0 bg-gradient-to-t from-luxury-black to-transparent"></div>
+       <div className="absolute bottom-12 left-1/2 -translate-x-1/2 text-center">
+          <Icons.Verified size={10} />
+          <p className="text-luxury-gold font-display text-3xl font-bold mt-2">Ashish Gauswami</p>
+          <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.4em]">Architect of Brotherhood</p>
+       </div>
+    </div>
+  </div>
+);
 
-const AppContent: React.FC = () => {
+const LoginPrompt = () => {
+  const { login, loading } = useAuth();
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="pt-40 pb-40 text-center container mx-auto px-6">
+      <h2 className="text-3xl font-display font-bold mb-6 italic uppercase tracking-tighter">Access Reserved</h2>
+      <p className="text-gray-500 mb-10 max-w-sm mx-auto font-light">Join the circle to manage your boutique or follow the elite makers.</p>
+      <button onClick={login} disabled={loading} className="gold-gradient text-luxury-black font-black px-12 py-4 rounded-xl hover:scale-105 transition-all shadow-2xl text-[10px] tracking-widest uppercase">
+        {loading ? 'CONNECTING...' : 'LOGIN WITH GOOGLE'}
+      </button>
+    </div>
+  );
+};
+
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-luxury-gold border-t-transparent rounded-full animate-spin"></div></div>;
+  if (!user) return <Navigate to="/login-prompt" replace />;
+  return <>{children}</>;
+};
+
+// Fix: Added missing MobileBottomNav and Footer components for better UX and to resolve build errors
+const MobileBottomNav: React.FC = () => (
+  <nav className="lg:hidden fixed bottom-0 left-0 right-0 glass border-t border-white/10 px-6 py-4 flex items-center justify-around z-50">
+    <Link to="/" className="text-gray-400 hover:text-luxury-gold transition-all">
+      <Icons.Home />
+    </Link>
+    <Link to="/register-shop" className="text-gray-400 hover:text-luxury-gold transition-all">
+      <Icons.Plus />
+    </Link>
+    <Link to="/dashboard" className="text-gray-400 hover:text-luxury-gold transition-all">
+      <Icons.User />
+    </Link>
+  </nav>
+);
+
+const Footer: React.FC = () => (
+  <footer className="bg-luxury-black border-t border-white/5 py-16 mt-20 pb-24 lg:pb-16">
+    <div className="container mx-auto px-6">
+      <div className="flex flex-col md:flex-row justify-between items-center gap-8 text-center md:text-left">
+        <div className="flex flex-col items-center md:items-start">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-8 h-8 rounded-lg gold-gradient flex items-center justify-center font-display font-black text-luxury-black text-sm">B</div>
+            <span className="font-display text-sm font-extrabold gold-gradient bg-clip-text text-transparent uppercase tracking-wider">Brotherhood</span>
+          </div>
+          <p className="text-gray-600 text-[9px] uppercase tracking-[0.2em] font-bold">The New Standard of Fashion</p>
+        </div>
+        
+        <div className="flex gap-10">
+          <Link to="/about" className="text-gray-500 hover:text-white text-[9px] uppercase font-bold tracking-widest transition-colors">Story</Link>
+          <Link to="/" className="text-gray-500 hover:text-white text-[9px] uppercase font-bold tracking-widest transition-colors">Marketplace</Link>
+          <Link to="/register-shop" className="text-gray-500 hover:text-white text-[9px] uppercase font-bold tracking-widest transition-colors">Partner</Link>
+        </div>
+
+        <div className="text-right">
+          <p className="text-gray-700 text-[9px] uppercase tracking-[0.2em] font-bold">
+            © {new Date().getFullYear()} Brotherhood Clothing • Palanpur
+          </p>
+        </div>
+      </div>
+    </div>
+  </footer>
+);
+
+// --- App Structure Wrapper ---
+const AppContent: React.FC = () => {
+  const { user } = useAuth();
+  return (
+    <div className="min-h-screen bg-luxury-black text-white selection:bg-luxury-gold selection:text-luxury-black flex flex-col">
       <Header />
-      <main className="flex-1">
+      <main className="flex-grow">
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/shop/:id" element={<ShopProfileWrapper />} />
+          <Route path="/shop/:id" element={<ShopProfile />} />
           <Route path="/register-shop" element={<RegisterShop />} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/about" element={<About />} />
+          <Route path="/login-prompt" element={<LoginPrompt />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
+      <MobileBottomNav />
       <Footer />
     </div>
   );
 };
 
-const ShopProfileWrapper = () => {
-  const { id } = useParams();
-  return <ShopProfile id={id} />;
-};
-
-import { useParams } from 'react-router-dom';
-
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user } = useAuth();
-  if (!user) return <Navigate to="/" replace />;
-  return <>{children}</>;
-};
-
-const About = () => (
-  <div className="pt-32 pb-20 container mx-auto px-6 max-w-4xl text-center">
-    <h1 className="text-5xl font-display font-bold mb-10">Connecting Palanpur's <span className="gold-gradient bg-clip-text text-transparent">Finest</span></h1>
-    <p className="text-xl text-gray-400 font-light leading-relaxed mb-8">
-      Brotherhood Clothing is more than just a market; it's a movement to bring the premium boutiques of Palanpur under one luxury umbrella. Founded by Ashish Gauswami, we believe in community, quality, and the timeless art of fashion.
-    </p>
-    <img src="https://picsum.photos/seed/about/1200/600" className="rounded-3xl w-full h-80 object-cover mb-12 opacity-60" alt="About Brotherhood" />
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-      <div className="glass p-8 rounded-2xl">
-        <h3 className="text-luxury-gold font-bold mb-2">CURATED</h3>
-        <p className="text-sm text-gray-400">Handpicked shops representing the best of Gujarat's style.</p>
-      </div>
-      <div className="glass p-8 rounded-2xl">
-        <h3 className="text-luxury-gold font-bold mb-2">COMMUNITY</h3>
-        <p className="text-sm text-gray-400">Bridging the gap between local creators and fashion lovers.</p>
-      </div>
-      <div className="glass p-8 rounded-2xl">
-        <h3 className="text-luxury-gold font-bold mb-2">EXCELLENCE</h3>
-        <p className="text-sm text-gray-400">Upholding the highest standards in product and presentation.</p>
-      </div>
-    </div>
-  </div>
-);
-
 const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(getCurrentUser());
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const login = () => {
-    // Simulate Google OAuth Popup
-    const mockUser: User = {
-      id: 'mock-user-123',
-      name: 'Ashish Gauswami',
-      email: 'gauswamiashish760@gmail.com',
-      picture: 'https://picsum.photos/seed/profile/200/200',
-      role: UserRole.ADMIN // Hardcoded Ashish as Admin for demo
-    };
-    loginUser(mockUser);
-    setUser(mockUser);
+  const ADMIN_EMAIL = 'gauswamiashish760@gmail.com';
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        let profile = getUserProfile(firebaseUser.uid);
+        if (!profile) {
+          const isAdmin = firebaseUser.email === ADMIN_EMAIL;
+          profile = {
+            id: firebaseUser.uid,
+            name: firebaseUser.displayName || 'Owner',
+            email: firebaseUser.email || '',
+            picture: firebaseUser.photoURL || '',
+            role: isAdmin ? UserRole.ADMIN : UserRole.OWNER,
+            followedShopIds: [],
+            createdAt: Date.now()
+          };
+          saveUserProfile(profile);
+        } else {
+          // Hard-lock role check for admin even on existing profile
+          if (firebaseUser.email === ADMIN_EMAIL && profile.role !== UserRole.ADMIN) {
+            profile.role = UserRole.ADMIN;
+            saveUserProfile(profile);
+          }
+        }
+        setUser(profile);
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const login = async () => {
+    setLoading(true);
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (e) {
+      alert("Popup blocked or login failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const logout = () => {
-    logoutUser();
+  const logout = async () => {
+    await signOut(auth);
     setUser(null);
   };
 
-  const isAdmin = user?.role === UserRole.ADMIN || user?.email === FOUNDER_SHOP.email;
+  const updateUser = (u: User) => {
+    setUser({ ...u });
+    saveUserProfile(u);
+  };
+
+  const isAdmin = user?.role === UserRole.ADMIN;
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAdmin }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, isAdmin, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
