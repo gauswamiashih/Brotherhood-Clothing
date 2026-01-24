@@ -1,47 +1,27 @@
-
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, Navigate, useParams, useLocation } from 'react-router-dom';
-import { initializeApp } from 'firebase/app';
 // Fix: Consolidate Firebase Auth imports and remove unused User type which was causing export errors
-import { 
-  getAuth, 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  onAuthStateChanged, 
-  signOut
-} from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { User, Shop, UserRole, ShopStatus, ShopCategory, ShopMedia } from './types';
-import { 
-  getShops, 
-  saveShop, 
-  generateId, 
-  toggleFollowShop, 
-  getPublicMarketplaceShops, 
+import {
+  getShops,
+  saveShop,
+  generateId,
+  toggleFollowShop,
+  getPublicMarketplaceShops,
   getShopsByStatus,
   getUserProfile,
   saveUserProfile
 } from './store';
 import { Icons, FOUNDER_SHOP } from './constants';
-
-// --- Firebase Configuration ---
-const firebaseConfig = {
-  apiKey: "AIzaSyB-brotherhood-dummy-key", 
-  authDomain: "brotherhood-clothing.firebaseapp.com",
-  projectId: "brotherhood-clothing",
-  storageBucket: "brotherhood-clothing.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
+import { auth } from './src/firebase';
+import { logout, getOrCreateUserProfile } from './src/auth';
+import Login from './src/Login';
 
 // --- Context ---
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: () => Promise<void>;
   logout: () => Promise<void>;
   isAdmin: boolean;
   updateUser: (user: User) => void;
@@ -58,7 +38,8 @@ const useAuth = () => {
 // --- Components ---
 
 const Header: React.FC = () => {
-  const { user, login, logout, loading } = useAuth();
+  const { user, logout, loading } = useAuth();
+  const navigate = useNavigate();
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
@@ -98,7 +79,7 @@ const Header: React.FC = () => {
               <button onClick={logout} className="text-[10px] font-bold text-gray-500 hover:text-white uppercase tracking-widest transition-colors hidden md:block">Logout</button>
             </div>
           ) : (
-            <button onClick={login} className="gold-gradient text-luxury-black font-bold px-8 py-3 rounded-xl hover:scale-105 transition-all text-[11px] tracking-widest shadow-xl shadow-luxury-gold/10">
+            <button onClick={() => navigate('/login')} className="gold-gradient text-luxury-black font-bold px-8 py-3 rounded-xl hover:scale-105 transition-all text-[11px] tracking-widest shadow-xl shadow-luxury-gold/10">
               LOGIN
             </button>
           )}
@@ -192,7 +173,8 @@ const Home: React.FC = () => {
 
 const ShopProfile: React.FC = () => {
   const { id } = useParams();
-  const { user, updateUser, login } = useAuth();
+  const { user, updateUser } = useAuth();
+  const navigate = useNavigate();
   const [shop, setShop] = useState<Shop | null>(null);
   const isFollowing = user?.followedShopIds.includes(id || '') || false;
 
@@ -205,7 +187,7 @@ const ShopProfile: React.FC = () => {
 
   const handleFollow = () => {
     if (!user) {
-      login();
+      navigate('/login');
       return;
     }
     const result = toggleFollowShop(user.id, shop!.id);
@@ -279,7 +261,8 @@ const ShopProfile: React.FC = () => {
 };
 
 const RegisterShop: React.FC = () => {
-  const { user, login } = useAuth();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     shopName: '',
     ownerName: '',
@@ -300,7 +283,7 @@ const RegisterShop: React.FC = () => {
       <div className="pt-40 pb-40 text-center container mx-auto px-6">
         <h2 className="text-4xl font-display font-bold mb-6 italic">Partner With Us</h2>
         <p className="text-gray-400 mb-10 max-w-md mx-auto leading-relaxed">Join the exclusive brotherhood of Palanpur's fashion leaders.</p>
-        <button onClick={login} className="gold-gradient text-luxury-black font-black px-12 py-4 rounded-xl hover:scale-105 transition-all shadow-2xl text-xs tracking-widest uppercase">
+        <button onClick={() => navigate('/login')} className="gold-gradient text-luxury-black font-black px-12 py-4 rounded-xl hover:scale-105 transition-all shadow-2xl text-xs tracking-widest uppercase">
           LOGIN TO CONTINUE
         </button>
       </div>
@@ -480,13 +463,13 @@ const About = () => (
 );
 
 const LoginPrompt = () => {
-  const { login, loading } = useAuth();
+  const navigate = useNavigate();
   return (
     <div className="pt-40 pb-40 text-center container mx-auto px-6">
       <h2 className="text-3xl font-display font-bold mb-6 italic uppercase tracking-tighter">Access Reserved</h2>
       <p className="text-gray-500 mb-10 max-w-sm mx-auto font-light">Join the circle to manage your boutique or follow the elite makers.</p>
-      <button onClick={login} disabled={loading} className="gold-gradient text-luxury-black font-black px-12 py-4 rounded-xl hover:scale-105 transition-all shadow-2xl text-[10px] tracking-widest uppercase">
-        {loading ? 'CONNECTING...' : 'LOGIN WITH GOOGLE'}
+      <button onClick={() => navigate('/login')} className="gold-gradient text-luxury-black font-black px-12 py-4 rounded-xl hover:scale-105 transition-all shadow-2xl text-[10px] tracking-widest uppercase">
+        LOGIN
       </button>
     </div>
   );
@@ -495,7 +478,7 @@ const LoginPrompt = () => {
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-luxury-gold border-t-transparent rounded-full animate-spin"></div></div>;
-  if (!user) return <Navigate to="/login-prompt" replace />;
+  if (!user) return <Navigate to="/" replace />;
   return <>{children}</>;
 };
 
@@ -545,6 +528,7 @@ const Footer: React.FC = () => (
 // --- App Structure Wrapper ---
 const AppContent: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-luxury-black text-white selection:bg-luxury-gold selection:text-luxury-black flex flex-col">
       <Header />
@@ -569,55 +553,19 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const ADMIN_EMAIL = 'gauswamiashish760@gmail.com';
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
-        let profile = getUserProfile(firebaseUser.uid);
-        if (!profile) {
-          const isAdmin = firebaseUser.email === ADMIN_EMAIL;
-          profile = {
-            id: firebaseUser.uid,
-            name: firebaseUser.displayName || 'Owner',
-            email: firebaseUser.email || '',
-            picture: firebaseUser.photoURL || '',
-            role: isAdmin ? UserRole.ADMIN : UserRole.OWNER,
-            followedShopIds: [],
-            createdAt: Date.now()
-          };
-          saveUserProfile(profile);
-        } else {
-          // Hard-lock role check for admin even on existing profile
-          if (firebaseUser.email === ADMIN_EMAIL && profile.role !== UserRole.ADMIN) {
-            profile.role = UserRole.ADMIN;
-            saveUserProfile(profile);
-          }
-        }
+        const profile = getOrCreateUserProfile(firebaseUser);
         setUser(profile);
       } else {
         setUser(null);
       }
       setLoading(false);
     });
+
     return () => unsubscribe();
   }, []);
-
-  const login = async () => {
-    setLoading(true);
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (e) {
-      alert("Popup blocked or login failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const logout = async () => {
-    await signOut(auth);
-    setUser(null);
-  };
 
   const updateUser = (u: User) => {
     setUser({ ...u });
@@ -627,7 +575,7 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const isAdmin = user?.role === UserRole.ADMIN;
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isAdmin, updateUser }}>
+    <AuthContext.Provider value={{ user, loading, logout, isAdmin, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
