@@ -10,9 +10,10 @@ import Login from './pages/Login';
 import RegisterShop from './pages/RegisterShop';
 import ShopProfile from './pages/ShopProfile';
 import OwnerDashboard from './pages/OwnerDashboard';
+import ShopsList from './pages/ShopsList';
 import About from './pages/About';
 import LoginPrompt from './pages/LoginPrompt';
-import Register from './pages/Register'; // Keeping for now if needed
+import Register from './pages/Register';
 
 // Component Imports
 import Header from './components/Header';
@@ -24,7 +25,13 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode, allowedRoles?: UserR
   const location = useLocation();
 
   if (loading) {
-    return <div className="min-h-screen bg-black flex items-center justify-center text-white font-serif text-2xl animate-pulse">Loading Brotherhood...</div>;
+    return (
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center">
+        <div className="text-luxury-gold font-serif text-2xl animate-pulse tracking-widest uppercase">
+          Verifying Identity...
+        </div>
+      </div>
+    );
   }
 
   if (!user) {
@@ -32,18 +39,14 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode, allowedRoles?: UserR
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />; // Or forbidden page
+    // Redirect based on actual role if access is forbidden
+    if (user.role === UserRole.ADMIN) return <Navigate to="/admin-dashboard" replace />;
+    if (user.role === UserRole.OWNER) return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/marketplace" replace />;
   }
 
   return <>{children}</>;
 };
-
-const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, loading, isAdmin } = useAuth();
-  if (loading) return <div>Loading...</div>;
-  return user && isAdmin ? <>{children}</> : <Navigate to="/" />;
-};
-
 
 const AppContent: React.FC = () => {
   return (
@@ -72,7 +75,9 @@ const AppContent: React.FC = () => {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} /> {/* Optional, keeping for reference */}
+          <Route path="/register" element={<Register />} />
+          <Route path="/marketplace" element={<ShopsList />} />
+          <Route path="/shops" element={<Navigate to="/marketplace" replace />} />
 
           <Route path="/shop/:id" element={<ShopProfile />} />
           <Route path="/about" element={<About />} />
@@ -82,7 +87,7 @@ const AppContent: React.FC = () => {
           <Route
             path="/register-shop"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.VISITOR, UserRole.OWNER]}> {/* Allow visitors to register shop */}
+              <ProtectedRoute allowedRoles={[UserRole.VISITOR, UserRole.OWNER]}>
                 <RegisterShop />
               </ProtectedRoute>
             }
@@ -98,14 +103,18 @@ const AppContent: React.FC = () => {
           />
 
           <Route
-            path="/admin/*"
+            path="/admin-dashboard"
             element={
-              <AdminRoute>
-                <div className="pt-32 text-center text-white">Admin Dashboard Coming Soon</div>
-              </AdminRoute>
+              <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
+                <div className="pt-32 text-center text-white">
+                  <h1 className="text-4xl font-serif mb-8 text-luxury-gold">Admin Headquarters</h1>
+                  <p className="text-gray-500 uppercase tracking-widest text-xs">Command Center Under Construction</p>
+                </div>
+              </ProtectedRoute>
             }
           />
 
+          <Route path="/admin/*" element={<Navigate to="/admin-dashboard" replace />} />
         </Routes>
       </main>
 

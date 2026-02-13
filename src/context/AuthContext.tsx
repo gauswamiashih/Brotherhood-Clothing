@@ -20,86 +20,111 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-   const [session, setSession] = useState<Session | null>(null);
    const [user, setUser] = useState<User | null>(null);
+   const [session, setSession] = useState<Session | null>(null);
    const [loading, setLoading] = useState(true);
 
-   useEffect(() => {
-      // Check active session
-      supabase.auth.getSession().then(({ data: { session } }) => {
-         setSession(session);
-         if (session?.user) {
-            fetchUserProfile(session.user);
-         } else {
-            setLoading(false);
-         }
-      });
-
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-         setSession(session);
-         if (session?.user) {
-            await fetchUserProfile(session.user);
-         } else {
-            setUser(null);
-            setLoading(false);
-         }
-      });
-
-      return () => subscription.unsubscribe();
-   }, []);
-
-   const fetchUserProfile = async (authUser: SupabaseUser) => {
+   const fetchUserProfile = async (userId: string, email: string, metadata: any) => {
       try {
          const { data, error } = await supabase
             .from('users')
             .select('*')
-            .eq('id', authUser.id)
+            .eq('id', userId)
             .single();
 
          if (error) {
             if (error.code === 'PGRST116') {
                // User doesn't exist, create them
                const newUser: User = {
-                  id: authUser.id,
-                  name: authUser.user_metadata.full_name || authUser.email?.split('@')[0] || 'Anonymous',
-                  email: authUser.email || '',
-                  picture: authUser.user_metadata.avatar_url || '',
-                  role: UserRole.VISITOR, // Default role
+                  id: userId,
+                  name: metadata.full_name || email.split('@')[0] || 'Anonymous',
+                  email: email,
+                  picture: metadata.avatar_url || '',
+                  role: UserRole.VISITOR,
                   followedShopIds: [],
                   createdAt: Date.now()
                };
 
                const { error: insertError } = await supabase.from('users').insert(newUser);
-               if (insertError) {
-                  console.error('Error creating user:', insertError);
-                  toast.error('Failed to create user profile');
-               } else {
-                  setUser(newUser);
-               }
+               if (insertError) throw insertError;
+               setUser(newUser);
             } else {
-               console.error('Error fetching user:', error);
+               throw error;
             }
          } else {
             setUser(data as User);
          }
       } catch (err) {
-         console.error('Unexpected error fetching user:', err);
+         console.error('Error in fetchUserProfile:', err);
+         setUser(null);
       } finally {
          setLoading(false);
       }
    };
+
+   useEffect(() => {
+      // 1. Initial Session Check
+      const initAuth = async () => {
+         try {
+            const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+            if (error) throw error;
+
+            setSession(initialSession);
+            if (initialSession?.user) {
+               await fetchUserProfile(
+                  initialSession.user.id,
+                  initialSession.user.email!,
+                  initialSession.user.user_metadata
+               );
+            } else {
+               setLoading(false);
+            }
+         } catch (error) {
+            console.error('Auth initialization error:', error);
+            setLoading(false);
+         }
+      };
+
+      initAuth();
+
+      // 2. Listen for Auth State Changes
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+         console.log('Auth State Change Event:', event);
+         setSession(currentSession);
+
+         if (currentSession?.user) {
+            await fetchUserProfile(
+               currentSession.user.id,
+               currentSession.user.email!,
+               currentSession.user.user_metadata
+            );
+         } else {
+            setUser(null);
+            setLoading(false);
+         }
+      });
+
+      return () => {
+         subscription.unsubscribe();
+      };
+   }, []);
 
    const signInWithGoogle = async () => {
       try {
          const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-               redirectTo: window.location.origin
+               redirectTo: window.location.origin,
+               queryParams: {
+                  access_type: 'offline',
+                  prompt: 'consent',
+               },
             }
          });
          if (error) throw error;
       } catch (error: any) {
          toast.error(`Login failed: ${error.message}`);
+         console.error('Login error:', error);
       }
    };
 
@@ -107,9 +132,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
          const { error } = await supabase.auth.signOut();
          if (error) throw error;
-         toast.success('Logged out successfully');
-         setSession(null);
          setUser(null);
+         setSession(null);
+         toast.success('Logged out successfully');
       } catch (error: any) {
          toast.error(`Logout failed: ${error.message}`);
       }
@@ -119,12 +144,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       session,
       user,
       loading,
-      isAuthenticated: !!session?.user,
+      isAuthenticated: !!session,
       signInWithGoogle,
       signOut,
       isAdmin: user?.role === UserRole.ADMIN,
       isOwner: user?.role === UserRole.OWNER,
-      isCustomer: user?.role === UserRole.VISITOR || !user?.role, // Treat visitor as customer for now
+      isCustomer: user?.role === UserRole.VISITOR || !user?.role,
    };
 
    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

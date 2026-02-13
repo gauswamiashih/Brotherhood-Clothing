@@ -37,7 +37,7 @@ const Home: React.FC = () => {
     } else if (user?.role === UserRole.OWNER) {
       navigate('/dashboard');
     } else if (user?.role === UserRole.ADMIN) {
-      navigate('/admin/dashboard');
+      navigate('/admin-dashboard');
     } else {
       navigate('/register-shop');
     }
@@ -73,7 +73,7 @@ const Home: React.FC = () => {
             </p>
 
             <div className="pt-6 flex flex-wrap gap-4">
-              <Link to="/shops" className="px-10 py-5 bg-luxury-gold text-luxury-black font-bold tracking-widest text-[10px] uppercase hover:bg-white transition-all shadow-[0_0_40px_rgba(212,175,55,0.2)]">
+              <Link to="/marketplace" className="px-10 py-5 bg-luxury-gold text-luxury-black font-bold tracking-widest text-[10px] uppercase hover:bg-white transition-all shadow-[0_0_40px_rgba(212,175,55,0.2)]">
                 EXPLORE DIRECTORY
               </Link>
               <button

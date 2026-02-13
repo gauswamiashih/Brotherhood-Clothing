@@ -28,7 +28,7 @@ const Header: React.FC = () => {
             </Link>
 
             <nav className="hidden lg:flex items-center gap-12 text-xs font-black tracking-[0.25em] uppercase text-gray-400 ml-auto mr-auto pl-20">
-               <Link to="/" className="hover:text-white transition-colors">Marketplace</Link>
+               <Link to="/marketplace" className="hover:text-white transition-colors">Marketplace</Link>
                <Link to="/register-shop" className="hover:text-white transition-colors">Partner With Us</Link>
                <Link to="/about" className="hover:text-white transition-colors">Our Story</Link>
             </nav>
@@ -38,7 +38,10 @@ const Header: React.FC = () => {
                   <div className="w-8 h-8 border-2 border-luxury-gold border-t-transparent rounded-full animate-spin"></div>
                ) : user ? (
                   <div className="flex items-center gap-4">
-                     <Link to="/dashboard" className="flex items-center gap-3 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl border border-white/5 transition-all group">
+                     <Link
+                        to={user.role === 'Admin' ? '/admin-dashboard' : '/dashboard'}
+                        className="flex items-center gap-3 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl border border-white/5 transition-all group"
+                     >
                         <img src={user.picture || 'https://images.unsplash.com/photo-1599305090598-fe179d501227?auto=format&fit=crop&q=80&w=200'} alt={user.name} className="w-8 h-8 rounded-full border border-luxury-gold group-hover:scale-110 transition-transform" />
                         <span className="hidden sm:block text-xs font-bold uppercase tracking-widest">{user.name.split(' ')[0]}</span>
                      </Link>

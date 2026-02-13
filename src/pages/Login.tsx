@@ -2,17 +2,24 @@
 import React, { useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { UserRole } from '../types';
 import { Icons } from '../constants';
 
 const Login: React.FC = () => {
-  const { signInWithGoogle, user } = useAuth();
+  const { signInWithGoogle, user, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
+    if (user && !loading) {
+      if (user.role === UserRole.ADMIN) {
+        navigate('/admin-dashboard');
+      } else if (user.role === UserRole.OWNER) {
+        navigate('/dashboard');
+      } else {
+        navigate('/marketplace');
+      }
     }
-  }, [user, navigate]);
+  }, [user, loading, navigate]);
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center pt-20 pb-10 px-4">
