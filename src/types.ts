@@ -56,4 +56,7 @@ export interface Shop {
   description: string;
   bio: string;
   createdAt: number;
+  users?: {
+    name: string;
+  };
 }

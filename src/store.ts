@@ -1,5 +1,5 @@
 
-import { User, Shop, UserRole, ShopStatus, ShopCategory, ShopMedia } from './types';
+import { User, Shop, UserRole, ShopStatus, ShopCategory, ShopMedia } from './src/types';
 import { FOUNDER_SHOP } from './constants';
 
 const SHOPS_KEY = 'brotherhood_shops_v3';
@@ -57,11 +57,11 @@ export const toggleFollowShop = (userId: string, shopId: string): { user: User, 
   const shops = getShops();
   const shop = shops.find(s => s.id === shopId);
   const user = getUserProfile(userId);
-  
+
   if (!shop || !user) return null;
 
   const isFollowing = user.followedShopIds.includes(shopId);
-  
+
   if (isFollowing) {
     user.followedShopIds = user.followedShopIds.filter(id => id !== shopId);
     shop.followersCount = Math.max(0, shop.followersCount - 1);

@@ -1,64 +1,153 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
+import { Shop, ShopStatus } from '../types';
+
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  category: string;
+  description: string;
+  shop_id: string;
+  images: string[];
+}
 
 const OwnerDashboard: React.FC = () => {
-  const { user, shops, products, addProduct, deleteProduct } = useAuth();
+  const { user } = useAuth();
   const [activeView, setActiveView] = useState('Overview');
   const [showAddForm, setShowAddForm] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: '', price: '', category: 'Western', description: '' });
 
-  const userShop = shops.find(s => s.ownerId === user?.id);
-  const shopProducts = products.filter(p => p.shopId === userShop?.id);
+  const [userShop, setUserShop] = useState<Shop | null>(null);
+  const [shopProducts, setShopProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleAddProduct = (e: React.FormEvent) => {
-    e.preventDefault();
-    addProduct({
-      name: newProduct.name,
-      price: Number(newProduct.price),
-      category: newProduct.category,
-      description: newProduct.description
-    });
-    setNewProduct({ name: '', price: '', category: 'Western', description: '' });
-    setShowAddForm(false);
+  useEffect(() => {
+    if (user) {
+      fetchShopData();
+    }
+  }, [user]);
+
+  const fetchShopData = async () => {
+    try {
+      setLoading(true);
+      // Fetch Shop
+      const { data: shops, error: shopError } = await supabase
+        .from('shops')
+        .select('*')
+        .eq('owner_id', user?.id) // Note: using owner_id matching DB column
+        .single();
+
+      if (shopError && shopError.code !== 'PGRST116') {
+        console.error('Error fetching shop:', shopError);
+      }
+
+      if (shops) {
+        // Map DB columns to Shop interface if needed, or use as is if compliant
+        // Assuming DB columns are snake_case, need mapping if Shop interface is camelCase
+        // For now, assuming direct mapping or I will fix types later.
+        // Let's assume we need to map for safety
+        const mappedShop = {
+          ...shops,
+          shopName: shops.shop_name,
+          ownerId: shops.owner_id,
+          followersCount: shops.followers_count || 0,
+          // Add other mappings
+        };
+        setUserShop(mappedShop as unknown as Shop);
+
+        // Fetch Products
+        const { data: products, error: prodError } = await supabase
+          .from('products')
+          .select('*')
+          .eq('shop_id', shops.id);
+
+        if (prodError) console.error('Error fetching products:', prodError);
+        if (products) setShopProducts(products as unknown as Product[]);
+      }
+
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userShop) return;
+
+    try {
+      const { data, error } = await supabase.from('products').insert({
+        name: newProduct.name,
+        price: Number(newProduct.price),
+        category: newProduct.category,
+        description: newProduct.description,
+        shop_id: userShop.id,
+        images: ['https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=400'] // Placeholder
+      }).select().single();
+
+      if (error) throw error;
+
+      setShopProducts([...shopProducts, data as unknown as Product]);
+      setNewProduct({ name: '', price: '', category: 'Western', description: '' });
+      setShowAddForm(false);
+      toast.success('Product added successfully');
+    } catch (error: any) {
+      toast.error('Failed to add product: ' + error.message);
+    }
+  };
+
+  const deleteProduct = async (id: string) => {
+    try {
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if (error) throw error;
+      setShopProducts(shopProducts.filter(p => p.id !== id));
+      toast.success('Product deleted');
+    } catch (error: any) {
+      toast.error('Failed to delete product');
+    }
+  };
+
+  if (loading) return <div className="p-20 text-center text-white">Loading Dashboard...</div>;
 
   return (
     <div className="bg-[#0a0a0a] min-h-screen flex pt-20">
       {/* Sidebar */}
       <aside className="w-72 bg-[#0d0d0d] border-r border-white/5 p-8 hidden lg:block h-[calc(100vh-80px)] fixed">
         <div className="space-y-12">
-           <div className="space-y-4">
-             {[
-               { name: 'Overview', icon: 'fa-chart-line' },
-               { name: 'Inventory', icon: 'fa-box' },
-               { name: 'Inquiries', icon: 'fa-message' },
-               { name: 'Settings', icon: 'fa-gear' }
-             ].map((item) => (
-               <button 
-                 key={item.name}
-                 onClick={() => setActiveView(item.name)}
-                 className={`w-full flex items-center space-x-3 px-4 py-3 transition-all ${
-                   activeView === item.name 
-                   ? 'bg-purple-600/10 text-purple-500 border-l-2 border-purple-600' 
-                   : 'text-gray-500 hover:text-white'
-                 }`}
-               >
-                 <i className={`fa-solid ${item.icon}`}></i>
-                 <span className="text-xs font-bold uppercase tracking-widest">{item.name}</span>
-               </button>
-             ))}
-           </div>
-           
-           <div className="pt-20 border-t border-white/5">
-             <div className="p-6 bg-white/5 space-y-4">
-                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Storage Status</p>
-                <div className="h-1 w-full bg-white/10 overflow-hidden">
-                  <div className="h-full w-1/4 bg-purple-600"></div>
-                </div>
-                <p className="text-[10px] text-white font-bold">Real-time Persistence Active</p>
-             </div>
-           </div>
+          <div className="space-y-4">
+            {[
+              { name: 'Overview', icon: 'fa-chart-line' },
+              { name: 'Inventory', icon: 'fa-box' },
+              { name: 'Inquiries', icon: 'fa-message' },
+              { name: 'Settings', icon: 'fa-gear' }
+            ].map((item) => (
+              <button
+                key={item.name}
+                onClick={() => setActiveView(item.name)}
+                className={`w-full flex items-center space-x-3 px-4 py-3 transition-all ${activeView === item.name
+                  ? 'bg-purple-600/10 text-purple-500 border-l-2 border-purple-600'
+                  : 'text-gray-500 hover:text-white'
+                  }`}
+              >
+                <i className={`fa-solid ${item.icon}`}></i>
+                <span className="text-xs font-bold uppercase tracking-widest">{item.name}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="pt-20 border-t border-white/5">
+            <div className="p-6 bg-white/5 space-y-4">
+              <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Storage Status</p>
+              <div className="h-1 w-full bg-white/10 overflow-hidden">
+                <div className="h-full w-1/4 bg-purple-600"></div>
+              </div>
+              <p className="text-[10px] text-white font-bold">Real-time Persistence Active</p>
+            </div>
+          </div>
         </div>
       </aside>
 
@@ -68,9 +157,9 @@ const OwnerDashboard: React.FC = () => {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
             <div className="space-y-2">
               <h1 className="font-serif text-5xl text-white font-bold tracking-tight">{activeView} <span className="text-purple-500">Suite</span></h1>
-              <p className="text-gray-500 font-light text-lg italic">Curating the collective at <span className="text-white font-medium">{userShop?.name}</span></p>
+              <p className="text-gray-500 font-light text-lg italic">Curating the collective at <span className="text-white font-medium">{userShop?.shopName || 'Your Shop'}</span></p>
             </div>
-            <button 
+            <button
               onClick={() => setShowAddForm(true)}
               className="px-8 py-4 bg-purple-600 text-white font-bold uppercase tracking-widest text-[10px] hover:bg-purple-500 transition-colors shadow-2xl"
             >
@@ -83,15 +172,15 @@ const OwnerDashboard: React.FC = () => {
               <form onSubmit={handleAddProduct} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Piece Name</label>
-                  <input required value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} className="w-full bg-black border border-white/10 p-4 text-white text-xs outline-none focus:border-purple-600" />
+                  <input required value={newProduct.name} onChange={e => setNewProduct({ ...newProduct, name: e.target.value })} className="w-full bg-black border border-white/10 p-4 text-white text-xs outline-none focus:border-purple-600" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Valuation (INR)</label>
-                  <input type="number" required value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} className="w-full bg-black border border-white/10 p-4 text-white text-xs outline-none focus:border-purple-600" />
+                  <input type="number" required value={newProduct.price} onChange={e => setNewProduct({ ...newProduct, price: e.target.value })} className="w-full bg-black border border-white/10 p-4 text-white text-xs outline-none focus:border-purple-600" />
                 </div>
                 <div className="space-y-2 md:col-span-2">
-                   <label className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Collection Notes</label>
-                   <textarea value={newProduct.description} onChange={e => setNewProduct({...newProduct, description: e.target.value})} className="w-full bg-black border border-white/10 p-4 text-white text-xs h-24 outline-none focus:border-purple-600"></textarea>
+                  <label className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Collection Notes</label>
+                  <textarea value={newProduct.description} onChange={e => setNewProduct({ ...newProduct, description: e.target.value })} className="w-full bg-black border border-white/10 p-4 text-white text-xs h-24 outline-none focus:border-purple-600"></textarea>
                 </div>
                 <div className="flex gap-4">
                   <button type="submit" className="px-8 py-4 bg-purple-600 text-white text-[10px] font-bold uppercase tracking-widest">Publish Piece</button>
@@ -103,7 +192,7 @@ const OwnerDashboard: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { label: 'Shop Views', value: userShop?.viewCount || 0, trend: 'REALTIME', icon: 'fa-eye' },
+              { label: 'Shop Views', value: 0, trend: 'REALTIME', icon: 'fa-eye' },
               { label: 'Collective Leads', value: '0', trend: 'DYNAMIC', icon: 'fa-whatsapp' },
               { label: 'Curated Pieces', value: shopProducts.length, trend: 'STABLE', icon: 'fa-gem' },
               { label: 'Shop Status', value: userShop?.status || 'Active', trend: 'VERIFIED', icon: 'fa-star' },
@@ -142,7 +231,7 @@ const OwnerDashboard: React.FC = () => {
                     <tr key={item.id} className="hover:bg-white/5 transition-colors group">
                       <td className="px-8 py-5 flex items-center gap-4">
                         <div className="w-10 h-12 bg-black border border-white/10 overflow-hidden">
-                           <img src={item.images[0]} className="w-full h-full object-cover grayscale" alt="piece" />
+                          <img src={item.images[0]} className="w-full h-full object-cover grayscale" alt="piece" />
                         </div>
                         <span className="text-sm font-medium text-white">{item.name}</span>
                       </td>
@@ -153,7 +242,7 @@ const OwnerDashboard: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-8 py-5 text-right">
-                        <button 
+                        <button
                           onClick={() => deleteProduct(item.id)}
                           className="text-gray-500 hover:text-red-500 transition-colors"
                           title="Delete Piece"
@@ -178,3 +267,4 @@ const OwnerDashboard: React.FC = () => {
 };
 
 export default OwnerDashboard;
+
