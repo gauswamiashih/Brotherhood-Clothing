@@ -10,6 +10,7 @@ import Login from './pages/Login';
 import RegisterShop from './pages/RegisterShop';
 import ShopProfile from './pages/ShopProfile';
 import OwnerDashboard from './pages/OwnerDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import ShopsList from './pages/ShopsList';
 import About from './pages/About';
 import LoginPrompt from './pages/LoginPrompt';
