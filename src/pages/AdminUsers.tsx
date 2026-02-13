@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import UsersTable from '../components/UsersTable';
 import ConfirmationModal from '../components/ConfirmationModal';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { User, UserRole } from '../types';
 import toast from 'react-hot-toast';
 

@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { User, UserRole } from '../types';
 import toast from 'react-hot-toast';
 
@@ -9,6 +9,7 @@ interface AuthContextType {
    session: Session | null;
    user: User | null;
    loading: boolean;
+   isAuthenticated: boolean;
    signInWithGoogle: () => Promise<void>;
    signOut: () => Promise<void>;
    isAdmin: boolean;
@@ -118,6 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       session,
       user,
       loading,
+      isAuthenticated: !!session?.user,
       signInWithGoogle,
       signOut,
       isAdmin: user?.role === UserRole.ADMIN,

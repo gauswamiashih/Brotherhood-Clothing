@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import StatsCard from '../components/StatsCard';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 const AdminDashboard: React.FC = () => {
    const [stats, setStats] = useState({
